@@ -89,13 +89,18 @@ flowchart TD
     D --> H[Lending and Return Module]
     D --> I[Reminder and Extension Module]
 
+    H --> J[QR Code Generation]
+    J --> K[QR Code Scanning]
+    K --> L[Return Confirmation]
+
     F --> E
     G --> E
     H --> E
     I --> E
+    L --> E
 
     E --> D
     D --> C
     C --> B
-    B --> J[Dashboard and Lending History]
+    B --> M[Dashboard and Lending History]
 ```
