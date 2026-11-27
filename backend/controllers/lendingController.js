@@ -15,7 +15,6 @@ const createLending = async (req, res) => {
             });
         }
 
-        // Check if return date is valid and in the future
         const returnDate = new Date(expectedReturnDate);
 
         if (isNaN(returnDate.getTime()) || returnDate <= new Date()) {
@@ -24,7 +23,6 @@ const createLending = async (req, res) => {
             });
         }
 
-        // Find the item
         const item = await Item.findOne({
             _id: itemId,
             owner: req.user.id
@@ -42,7 +40,6 @@ const createLending = async (req, res) => {
             });
         }
 
-        // Find the borrower
         const borrower = await User.findById(borrowerId);
 
         if (!borrower) {
@@ -57,10 +54,9 @@ const createLending = async (req, res) => {
             });
         }
 
-        // Generate a unique token for QR-based return
+        // Generate QR token
         const qrToken = crypto.randomBytes(32).toString("hex");
 
-        // Create lending record
         const lending = await Lending.create({
             item: item._id,
             lender: req.user.id,
@@ -70,7 +66,6 @@ const createLending = async (req, res) => {
             qrToken
         });
 
-        // Update item availability
         item.availability = "lent";
         await item.save();
 
@@ -97,14 +92,29 @@ const getLendings = async (req, res) => {
                 { borrower: req.user.id }
             ]
         })
+        .select("+qrToken")
         .populate("item", "name category")
         .populate("lender", "name email")
         .populate("borrower", "name email")
         .sort({ createdAt: -1 });
 
+        // Send QR token only to borrower
+        const safeLendings = lendings.map((lending) => {
+            const data = lending.toObject();
+
+            if (
+                !lending.borrower ||
+                lending.borrower._id.toString() !== req.user.id
+            ) {
+                delete data.qrToken;
+            }
+
+            return data;
+        });
+
         res.status(200).json({
-            count: lendings.length,
-            lendings
+            count: safeLendings.length,
+            lendings: safeLendings
         });
 
     } catch (error) {
@@ -127,7 +137,6 @@ const confirmReturn = async (req, res) => {
             });
         }
 
-        // Find lending record using QR token
         const lending = await Lending.findOne({
             qrToken
         }).select("+qrToken");
@@ -138,7 +147,7 @@ const confirmReturn = async (req, res) => {
             });
         }
 
-        // Only the lender can confirm the return
+        // Only lender can confirm return
         if (lending.lender.toString() !== req.user.id) {
             return res.status(403).json({
                 message: "Only the lender can confirm the return"
@@ -151,25 +160,23 @@ const confirmReturn = async (req, res) => {
             });
         }
 
-        // Mark lending record as returned
-lending.status = "returned";
-lending.returnedAt = new Date();
+        lending.status = "returned";
+        lending.returnedAt = new Date();
 
-await lending.save();
+        await lending.save();
 
-// Invalidate the QR token after successful return
-await Lending.updateOne(
-    { _id: lending._id },
-    { $unset: { qrToken: 1 } }
-);
+        // Invalidate QR token
+        await Lending.updateOne(
+            { _id: lending._id },
+            { $unset: { qrToken: 1 } }
+        );
 
-// Make item available again
-await Item.findByIdAndUpdate(lending.item, {
-    availability: "available"
-});
+        // Make item available again
+        await Item.findByIdAndUpdate(lending.item, {
+            availability: "available"
+        });
 
-// Remove token from response
-lending.qrToken = undefined;
+        lending.qrToken = undefined;
 
         res.status(200).json({
             message: "Item return confirmed successfully",
@@ -183,6 +190,7 @@ lending.qrToken = undefined;
         });
     }
 };
+
 
 // BORROWER ACKNOWLEDGES ITEM RECEIPT
 const acknowledgeLending = async (req, res) => {
@@ -232,7 +240,10 @@ const requestExtension = async (req, res) => {
     try {
         const { requestedReturnDate } = req.body;
 
-        if (!requestedReturnDate || isNaN(new Date(requestedReturnDate).getTime())) {
+        if (
+            !requestedReturnDate ||
+            isNaN(new Date(requestedReturnDate).getTime())
+        ) {
             return res.status(400).json({
                 message: "Please provide a valid requested return date"
             });
@@ -263,7 +274,10 @@ const requestExtension = async (req, res) => {
 
         const newDate = new Date(requestedReturnDate);
 
-        if (newDate <= lending.expectedReturnDate || newDate <= new Date()) {
+        if (
+            newDate <= lending.expectedReturnDate ||
+            newDate <= new Date()
+        ) {
             return res.status(400).json({
                 message: "New return date must be later than the current return date and today"
             });
