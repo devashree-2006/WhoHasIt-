@@ -67,7 +67,7 @@ export default function Notifications() {
           </Link>
         </nav>
 
-        <Link to="/login" className="logout-link">Logout</Link>
+        <Link to="/login" className="logout-link" onClick={() => { localStorage.removeItem("token"); localStorage.removeItem("user"); }}>Logout</Link>
       </aside>
 
       <main className="dashboard-main">

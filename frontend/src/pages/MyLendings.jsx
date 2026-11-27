@@ -48,7 +48,15 @@ export default function MyLendings() {
   };
 
   useEffect(() => {
-    fetchLendings();
+    let active = true;
+    API.get("/lendings", getTokenConfig()).then((response) => {
+      if (active) setLendings(response.data.lendings || []);
+    }).catch((err) => {
+      if (active) setError(err.response?.data?.message || "Failed to load lending records");
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
   }, []);
 
   const handleAcknowledge = async (id) => {
@@ -168,6 +176,8 @@ export default function MyLendings() {
     return () => {
       scanner.clear().catch(() => {});
     };
+    // The scanner is mounted for a selected record and uses the latest handler.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanOpen, activeScanId]);
 
   const pendingReturns = lendings.filter(
@@ -189,6 +199,17 @@ export default function MyLendings() {
     const day = String(date.getDate()).padStart(2, "0");
 
     return `${year}-${month}-${day}`;
+  };
+
+  const getStatusLabel = (lending) => {
+    if (lending.status === "returned") return "Returned";
+    const dueDate = new Date(lending.expectedReturnDate);
+    const now = new Date();
+    if (dueDate < now) return "Overdue";
+    const soon = new Date(now);
+    soon.setDate(soon.getDate() + 3);
+    if (dueDate <= soon) return "Due soon";
+    return lending.borrowerAcknowledged ? "Lent" : "Pending acknowledgement";
   };
 
   return (
@@ -216,7 +237,7 @@ export default function MyLendings() {
           </Link>
         </nav>
 
-        <Link to="/login" className="logout-link">Logout</Link>
+        <Link to="/login" className="logout-link" onClick={() => { localStorage.removeItem("token"); localStorage.removeItem("user"); }}>Logout</Link>
       </aside>
 
       <main className="dashboard-main">
@@ -314,7 +335,7 @@ export default function MyLendings() {
                     </p>
 
                     <p>
-                      Status: <strong>{lending.status}</strong>
+                      Status: <strong>{getStatusLabel(lending)}</strong>
                     </p>
 
                     {!isReturned && isBorrower && (

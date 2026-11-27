@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [lendingCount, setLendingCount] = useState(0);
   const [notificationCount, setNotificationCount] = useState(0);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [lendingSummary, setLendingSummary] = useState({ lent: 0, borrowed: 0, dueSoon: 0, overdue: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -50,6 +51,17 @@ export default function Dashboard() {
         );
 
         setRecentActivity(lendings.slice(0, 3));
+        const active = lendings.filter((lending) => lending.status !== "returned");
+        const now = new Date();
+        const dueSoonLimit = new Date(now);
+        dueSoonLimit.setDate(dueSoonLimit.getDate() + 3);
+        const userId = JSON.parse(localStorage.getItem("user") || "{}").id;
+        setLendingSummary({
+          lent: active.filter((lending) => lending.lender?._id === userId).length,
+          borrowed: active.filter((lending) => lending.borrower?._id === userId).length,
+          dueSoon: active.filter((lending) => new Date(lending.expectedReturnDate) >= now && new Date(lending.expectedReturnDate) <= dueSoonLimit).length,
+          overdue: active.filter((lending) => new Date(lending.expectedReturnDate) < now).length
+        });
       } catch (err) {
         setError(
           err.response?.data?.message ||
@@ -85,7 +97,7 @@ export default function Dashboard() {
           </Link>
         </nav>
 
-        <Link to="/login" className="logout-link">
+        <Link to="/login" className="logout-link" onClick={() => { localStorage.removeItem("token"); localStorage.removeItem("user"); }}>
           Logout
         </Link>
       </aside>
@@ -143,6 +155,13 @@ export default function Dashboard() {
               Explore <ArrowRight size={15} />
             </Link>
           </div>
+        </section>
+
+        <section className="stats-grid">
+          <div className="stat-card"><Handshake size={25} /><h3>{loading ? "..." : lendingSummary.lent}</h3><p>Items I Lent</p><Link to="/lendings">View records</Link></div>
+          <div className="stat-card"><Handshake size={25} /><h3>{loading ? "..." : lendingSummary.borrowed}</h3><p>Items I Borrowed</p><Link to="/lendings">View records</Link></div>
+          <div className="stat-card"><Clock size={25} /><h3>{loading ? "..." : lendingSummary.dueSoon}</h3><p>Due in the Next 3 Days</p><Link to="/lendings">View reminders</Link></div>
+          <div className="stat-card"><Clock size={25} /><h3>{loading ? "..." : lendingSummary.overdue}</h3><p>Overdue Items</p><Link to="/lendings">View overdue</Link></div>
         </section>
 
         <section className="activity-section">

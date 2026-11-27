@@ -104,3 +104,21 @@ flowchart TD
     C --> B
     B --> M[Dashboard and Lending History]
 ```
+
+## 9. Deployment
+
+The repository includes a Render Blueprint in `render.yaml` for the Express API and React static site. To deploy:
+
+1. Push this repository to GitHub and create or select a MongoDB Atlas database. In Atlas, allow connections from Render and create a database user.
+2. In Render, create a new Blueprint from the repository and review the two services (`whohasit-api` and `whohasit`).
+3. Set the API service's `MONGO_URI` to the Atlas connection string. Render generates `JWT_SECRET` automatically. The frontend API URL and API CORS origin are set for the service names in `render.yaml`.
+4. Deploy the Blueprint. If you change either Render service name, update `VITE_API_URL` and `CLIENT_URL` to match the resulting service URLs, then redeploy.
+
+For local development, copy `backend/.env.example` to `backend/.env`, fill in the MongoDB connection string and a private JWT secret, then install dependencies and start the backend and frontend in separate terminals (`npm install && npm run dev` in each directory). The frontend uses `http://localhost:5001/api` unless `VITE_API_URL` is set.
+
+### README feature coverage
+
+- Authentication, personal item management (including editing), lending records, borrower acknowledgement, QR return confirmation, extension requests and lender decisions, and lending history are implemented.
+- The dashboard summarizes lent and borrowed items, due-soon items, and overdue items. The lending list labels pending acknowledgement, lent, due soon, overdue, and returned records.
+- Daily in-app reminders are generated for both parties for items due tomorrow or overdue. The notification page displays these reminders.
+- The QR token is visible only to the borrower and is removed after the lender confirms return.

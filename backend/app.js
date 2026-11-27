@@ -11,7 +11,10 @@ const lendingRoutes = require("./routes/lendingRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 
 // Middleware
-app.use(cors());
+const allowedOrigins = process.env.CLIENT_URL
+    ? process.env.CLIENT_URL.split(",").map((origin) => origin.trim())
+    : true;
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 // Main API routes

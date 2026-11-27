@@ -6,12 +6,12 @@ import {
   Plus, Trash2, X
 } from "lucide-react";
 import API from "../services/api";
-import { QRCodeSVG } from "qrcode.react";
 
 export default function MyItems() {
   const [items, setItems] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [lendingItem, setLendingItem] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
@@ -20,7 +20,6 @@ export default function MyItems() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [qrToken, setQrToken] = useState("");
 
   const token = localStorage.getItem("token");
   const config = {
@@ -39,7 +38,17 @@ export default function MyItems() {
   };
 
   useEffect(() => {
-    fetchItems();
+    let active = true;
+    API.get("/items", config).then((response) => {
+      if (active) setItems(response.data.items || []);
+    }).catch((err) => {
+      if (active) setError(err.response?.data?.message || "Failed to load items");
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  // The first load intentionally runs once when this page mounts.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAddItem = async (e) => {
@@ -74,11 +83,26 @@ export default function MyItems() {
     }
   };
 
+  const handleUpdateItem = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await API.put(`/items/${editingItem._id}`, {
+        name, category, description
+      }, config);
+      setItems((prev) => prev.map((item) => item._id === editingItem._id ? response.data.item : item));
+      setEditingItem(null);
+      setName(""); setCategory(""); setDescription("");
+      setMessage("Item updated successfully!"); setError("");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update item");
+    }
+  };
+
 const handleLendItem = async (e) => {
   e.preventDefault();
 
   try {
-    const response = await API.post(
+    await API.post(
       "/lendings",
       {
         itemId: lendingItem._id,
@@ -87,11 +111,6 @@ const handleLendItem = async (e) => {
       },
       config
     );
-
-    const generatedToken = response.data.lending?.qrToken;
-    if (generatedToken) {
-      setQrToken(generatedToken);
-    }
 
     setLendingItem(null);
     setBorrowerId("");
@@ -121,7 +140,7 @@ const handleLendItem = async (e) => {
           <Link to="/lendings"><Handshake size={19} /> My Lendings</Link>
           <Link to="/notifications"><Bell size={19} /> Notifications</Link>
         </nav>
-        <Link to="/login" className="logout-link">Logout</Link>
+        <Link to="/login" className="logout-link" onClick={() => { localStorage.removeItem("token"); localStorage.removeItem("user"); }}>Logout</Link>
       </aside>
 
       <main className="dashboard-main">
@@ -138,31 +157,13 @@ const handleLendItem = async (e) => {
         {error && <p style={{ color: "red" }}>{error}</p>}
         {message && <p style={{ color: "green" }}>{message}</p>}
 
-        {qrToken && (
-  <section className="activity-section">
-    <h2>Item Return QR Code</h2>
-    <p>Show this QR code when returning the item.</p>
-
-    <QRCodeSVG value={qrToken} size={220} />
-
-    <p>Keep this QR code private.</p>
-
-    <button
-      className="primary-button"
-      onClick={() => setQrToken("")}
-    >
-      Close QR Code
-    </button>
-  </section>
-)}
-
-        {showForm && (
+        {(showForm || editingItem) && (
           <section className="activity-section">
             <div className="dashboard-header">
-              <h2>Add New Item</h2>
-              <button onClick={() => setShowForm(false)}><X size={20} /></button>
+              <h2>{editingItem ? "Edit Item" : "Add New Item"}</h2>
+              <button onClick={() => { setShowForm(false); setEditingItem(null); }}><X size={20} /></button>
             </div>
-            <form onSubmit={handleAddItem}>
+            <form onSubmit={editingItem ? handleUpdateItem : handleAddItem}>
               <label>Item Name</label>
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter item name" required />
 
@@ -172,7 +173,7 @@ const handleLendItem = async (e) => {
               <label>Description</label>
               <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe your item" />
 
-              <button className="primary-button" type="submit">Save Item</button>
+              <button className="primary-button" type="submit">{editingItem ? "Save Changes" : "Save Item"}</button>
             </form>
           </section>
         )}
@@ -238,6 +239,10 @@ const handleLendItem = async (e) => {
                   <p>{item.category}</p>
                   <p>{item.description}</p>
                   <span>{item.availability}</span>
+
+                  <button onClick={() => { setEditingItem(item); setName(item.name); setCategory(item.category); setDescription(item.description || ""); setShowForm(false); }}>
+                    Edit Item
+                  </button>
 
                   {item.availability === "available" && (
                     <button onClick={() => setLendingItem(item)}>

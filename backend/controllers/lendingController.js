@@ -69,9 +69,11 @@ const createLending = async (req, res) => {
         item.availability = "lent";
         await item.save();
 
+        const safeLending = lending.toObject();
+        delete safeLending.qrToken;
         res.status(201).json({
             message: "Item lent successfully",
-            lending
+            lending: safeLending
         });
 
     } catch (error) {
